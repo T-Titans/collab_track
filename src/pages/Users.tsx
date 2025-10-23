@@ -1,132 +1,143 @@
-import React, { useState, useEffect, Fragment } from 'react';
+import React, { useState, useEffect } from 'react';
 import Button from '../components/ui/Button';
-import { projectsAPI } from '../lib/api';
-import { Project } from '../types';
+import { usersAPI } from '../lib/api';
+import { User } from '../types';
 import { useAuth } from '../context/AuthContext';
 
-// Remove duplicate interface - using the one from types
-
-const Projects: React.FC = () => {
-  const [projects, setProjects] = useState<Project[]>([]);
+const Users: React.FC = () => {
+  const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user: currentUser } = useAuth();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [newProject, setNewProject] = useState({
-    title: '',
-    description: '',
-    deadline: ''
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [newUser, setNewUser] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'TEAM_MEMBER' as 'ADMIN' | 'PROJECT_MANAGER' | 'TEAM_MEMBER'
   });
 
-  // Fetch projects on component mount
+  // Fetch users on component mount
   useEffect(() => {
-    const fetchProjects = async () => {
+    const fetchUsers = async () => {
       try {
         setIsLoading(true);
-        const response = await projectsAPI.getAll();
+        const response = await usersAPI.getAll();
         if (response.success) {
-          setProjects(response.data || []);
+          setUsers(response.data?.data || []);
         } else {
-          setError(response.error || 'Failed to fetch projects');
+          setError(response.error || 'Failed to fetch users');
         }
       } catch (err: any) {
-        setError(err.message || 'Failed to fetch projects');
+        setError(err.message || 'Failed to fetch users');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchProjects();
+    fetchUsers();
   }, []);
 
-  const handleCreateProject = async (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await projectsAPI.create({
-        title: newProject.title,
-        description: newProject.description,
-        deadline: newProject.deadline ? new Date(newProject.deadline).toISOString() : undefined
+      const response = await usersAPI.create({
+        name: newUser.name,
+        email: newUser.email,
+        password: newUser.password,
+        role: newUser.role
       });
       
       if (response.success && response.data) {
-        setProjects([response.data, ...projects]);
-        setNewProject({ title: '', description: '', deadline: '' });
+        setUsers([response.data, ...users]);
+        setNewUser({ name: '', email: '', password: '', role: 'TEAM_MEMBER' });
         setShowCreateModal(false);
       } else {
-        setError(response.error || 'Failed to create project');
+        setError(response.error || 'Failed to create user');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to create project');
+      setError(err.message || 'Failed to create user');
     }
   };
 
-  const handleEditProject = (project: Project) => {
-    setEditingProject(project);
-    setNewProject({
-      title: project.title,
-      description: project.description,
-      deadline: project.deadline ? new Date(project.deadline).toISOString().split('T')[0] : ''
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+    setNewUser({
+      name: user.name,
+      email: user.email,
+      password: '', // Don't pre-fill password
+      role: user.role
     });
     setShowEditModal(true);
   };
 
-  const handleUpdateProject = async (e: React.FormEvent) => {
+  const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingProject) return;
+    if (!editingUser) return;
     
     try {
-      const response = await projectsAPI.update(editingProject.id, {
-        title: newProject.title,
-        description: newProject.description,
-        deadline: newProject.deadline ? new Date(newProject.deadline).toISOString() : undefined
-      });
+      const updateData: any = {
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role
+      };
+      
+      // Only include password if it's provided
+      if (newUser.password.trim()) {
+        updateData.password = newUser.password;
+      }
+      
+      const response = await usersAPI.update(editingUser.id, updateData);
       
       if (response.success && response.data) {
-        setProjects(projects.map(p => p.id === editingProject.id ? response.data! : p));
-        setNewProject({ title: '', description: '', deadline: '' });
-        setEditingProject(null);
+        setUsers(users.map(u => u.id === editingUser.id ? response.data! : u));
+        setNewUser({ name: '', email: '', password: '', role: 'TEAM_MEMBER' });
+        setEditingUser(null);
         setShowEditModal(false);
       } else {
-        setError(response.error || 'Failed to update project');
+        setError(response.error || 'Failed to update user');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to update project');
+      setError(err.message || 'Failed to update user');
     }
   };
 
-  const handleDeleteProject = async (projectId: string) => {
-    if (!window.confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       return;
     }
     
     try {
-      const response = await projectsAPI.delete(projectId);
+      const response = await usersAPI.delete(userId);
       
       if (response.success) {
-        setProjects(projects.filter(p => p.id !== projectId));
+        setUsers(users.filter(u => u.id !== userId));
       } else {
-        setError(response.error || 'Failed to delete project');
+        setError(response.error || 'Failed to delete user');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to delete project');
+      setError(err.message || 'Failed to delete user');
     }
   };
 
-  const canEditProject = (project: Project) => {
-    return user?.role === 'ADMIN' || 
-           user?.role === 'PROJECT_MANAGER' || 
-           project.createdBy === user?.id;
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'ADMIN': return '#ef4444';
+      case 'PROJECT_MANAGER': return '#f59e0b';
+      case 'TEAM_MEMBER': return '#10b981';
+      default: return '#6b7280';
+    }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return '#10b981';
-      case 'completed': return '#3b82f6';
-      case 'archived': return '#6b7280';
-      default: return '#6b7280';
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'ADMIN': return '👑';
+      case 'PROJECT_MANAGER': return '📋';
+      case 'TEAM_MEMBER': return '👤';
+      default: return '❓';
     }
   };
 
@@ -138,7 +149,7 @@ const Projects: React.FC = () => {
         alignItems: 'center', 
         height: '50vh' 
       }}>
-        <div>Loading projects...</div>
+        <div>Loading users...</div>
       </div>
     );
   }
@@ -176,10 +187,10 @@ const Projects: React.FC = () => {
             fontSize: '1.875rem',
             fontWeight: 'bold'
           }}>
-            Projects
+            User Management
           </h1>
           <p style={{ color: '#6b7280', margin: 0 }}>
-            Manage your team's projects and track progress
+            Manage team members and their roles
           </p>
         </div>
         
@@ -188,19 +199,19 @@ const Projects: React.FC = () => {
           style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
         >
           <span>+</span>
-          New Project
+          Add User
         </Button>
       </div>
 
-      {/* Projects Grid */}
+      {/* Users Grid */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
         gap: '1.5rem'
       }}>
-        {projects.map((project) => (
+        {users.map((user) => (
           <div
-            key={project.id}
+            key={user.id}
             style={{
               backgroundColor: 'white',
               borderRadius: '8px',
@@ -225,34 +236,63 @@ const Projects: React.FC = () => {
               alignItems: 'flex-start',
               marginBottom: '1rem'
             }}>
-              <h3 style={{ 
-                margin: 0,
-                color: '#1f2937',
-                fontWeight: '600',
-                fontSize: '1.125rem'
-              }}>
-                {project.title}
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  backgroundColor: '#3b82f6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: '1.25rem',
+                  fontWeight: 'bold'
+                }}>
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h3 style={{ 
+                    margin: 0,
+                    color: '#1f2937',
+                    fontWeight: '600',
+                    fontSize: '1.125rem'
+                  }}>
+                    {user.name}
+                  </h3>
+                  <p style={{ 
+                    margin: 0,
+                    color: '#6b7280',
+                    fontSize: '0.875rem'
+                  }}>
+                    {user.email}
+                  </p>
+                </div>
+              </div>
+              
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span
                   style={{
-                    backgroundColor: getStatusColor(project.status),
+                    backgroundColor: getRoleColor(user.role),
                     color: 'white',
                     padding: '0.25rem 0.75rem',
                     borderRadius: '9999px',
                     fontSize: '0.75rem',
                     fontWeight: '500',
-                    textTransform: 'capitalize'
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem'
                   }}
                 >
-                  {project.status}
+                  <span>{getRoleIcon(user.role)}</span>
+                  {user.role.replace('_', ' ')}
                 </span>
-                {canEditProject(project) && (
+                {currentUser?.id !== user.id && (
                   <div style={{ display: 'flex', gap: '0.25rem' }}>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleEditProject(project);
+                        handleEditUser(user);
                       }}
                       style={{
                         background: 'none',
@@ -262,14 +302,14 @@ const Projects: React.FC = () => {
                         borderRadius: '4px',
                         color: '#6b7280'
                       }}
-                      title="Edit Project"
+                      title="Edit User"
                     >
                       ✏️
                     </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteProject(project.id);
+                        handleDeleteUser(user.id);
                       }}
                       style={{
                         background: 'none',
@@ -279,7 +319,7 @@ const Projects: React.FC = () => {
                         borderRadius: '4px',
                         color: '#ef4444'
                       }}
-                      title="Delete Project"
+                      title="Delete User"
                     >
                       🗑️
                     </button>
@@ -288,14 +328,6 @@ const Projects: React.FC = () => {
               </div>
             </div>
 
-            <p style={{ 
-              color: '#6b7280',
-              margin: '0 0 1rem 0',
-              lineHeight: '1.5'
-            }}>
-              {project.description}
-            </p>
-
             <div style={{ 
               display: 'flex', 
               justifyContent: 'space-between',
@@ -303,22 +335,25 @@ const Projects: React.FC = () => {
               fontSize: '0.875rem',
               color: '#6b7280'
             }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  <span>👥 {Array.isArray(project.members) ? project.members.length : project.members} • ✅ {project.taskCount || 0}</span>
-                </div>
-                {project.deadline && (
-                  <span>
-                    📅 {new Date(project.deadline).toLocaleDateString()}
-                  </span>
-                )}
-              </div>
+              <span>Member since {new Date(user.createdAt).toLocaleDateString()}</span>
+              {user.id === currentUser?.id && (
+                <span style={{ 
+                  backgroundColor: '#dbeafe',
+                  color: '#1e40af',
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '4px',
+                  fontSize: '0.75rem',
+                  fontWeight: '500'
+                }}>
+                  You
+                </span>
+              )}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Create Project Modal */}
+      {/* Create User Modal */}
       {showCreateModal && (
         <div style={{
           position: 'fixed',
@@ -344,10 +379,10 @@ const Projects: React.FC = () => {
               margin: '0 0 1.5rem 0',
               color: '#1f2937'
             }}>
-              Create New Project
+              Add New User
             </h2>
             
-            <form onSubmit={handleCreateProject}>
+            <form onSubmit={handleCreateUser}>
               <div style={{ marginBottom: '1rem' }}>
                 <label style={{
                   display: 'block',
@@ -355,13 +390,13 @@ const Projects: React.FC = () => {
                   fontWeight: '500',
                   color: '#374151'
                 }}>
-                  Project Title
+                  Full Name
                 </label>
                 <input
                   type="text"
                   required
-                  value={newProject.title}
-                  onChange={(e) => setNewProject({...newProject, title: e.target.value})}
+                  value={newUser.name}
+                  onChange={(e) => setNewUser({...newUser, name: e.target.value})}
                   style={{
                     width: '100%',
                     padding: '0.75rem',
@@ -369,7 +404,7 @@ const Projects: React.FC = () => {
                     borderRadius: '6px',
                     fontSize: '16px'
                   }}
-                  placeholder="Enter project title"
+                  placeholder="Enter full name"
                 />
               </div>
 
@@ -380,23 +415,46 @@ const Projects: React.FC = () => {
                   fontWeight: '500',
                   color: '#374151'
                 }}>
-                  Description
+                  Email
                 </label>
-                <textarea
+                <input
+                  type="email"
                   required
-                  value={newProject.description}
-                  onChange={(e) => setNewProject({...newProject, description: e.target.value})}
+                  value={newUser.email}
+                  onChange={(e) => setNewUser({...newUser, email: e.target.value})}
                   style={{
                     width: '100%',
                     padding: '0.75rem',
                     border: '1px solid #d1d5db',
                     borderRadius: '6px',
-                    fontSize: '16px',
-                    minHeight: '100px',
-                    resize: 'vertical',
-                    fontFamily: 'inherit'
+                    fontSize: '16px'
                   }}
-                  placeholder="Describe the project..."
+                  placeholder="Enter email address"
+                />
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  fontWeight: '500',
+                  color: '#374151'
+                }}>
+                  Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '16px'
+                  }}
+                  placeholder="Enter password"
                 />
               </div>
 
@@ -407,12 +465,11 @@ const Projects: React.FC = () => {
                   fontWeight: '500',
                   color: '#374151'
                 }}>
-                  Deadline
+                  Role
                 </label>
-                <input
-                  type="date"
-                  value={newProject.deadline}
-                  onChange={(e) => setNewProject({...newProject, deadline: e.target.value})}
+                <select
+                  value={newUser.role}
+                  onChange={(e) => setNewUser({...newUser, role: e.target.value as 'ADMIN' | 'PROJECT_MANAGER' | 'TEAM_MEMBER'})}
                   style={{
                     width: '100%',
                     padding: '0.75rem',
@@ -420,7 +477,11 @@ const Projects: React.FC = () => {
                     borderRadius: '6px',
                     fontSize: '16px'
                   }}
-                />
+                >
+                  <option value="TEAM_MEMBER">Team Member</option>
+                  <option value="PROJECT_MANAGER">Project Manager</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
               </div>
 
               <div style={{ 
@@ -436,7 +497,7 @@ const Projects: React.FC = () => {
                   Cancel
                 </Button>
                 <Button type="submit">
-                  Create Project
+                  Add User
                 </Button>
               </div>
             </form>
@@ -444,8 +505,8 @@ const Projects: React.FC = () => {
         </div>
       )}
 
-      {/* Edit Project Modal */}
-      {showEditModal && editingProject && (
+      {/* Edit User Modal */}
+      {showEditModal && editingUser && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -470,10 +531,10 @@ const Projects: React.FC = () => {
               margin: '0 0 1.5rem 0',
               color: '#1f2937'
             }}>
-              Edit Project
+              Edit User
             </h2>
             
-            <form onSubmit={handleUpdateProject}>
+            <form onSubmit={handleUpdateUser}>
               <div style={{ marginBottom: '1rem' }}>
                 <label style={{
                   display: 'block',
@@ -481,13 +542,13 @@ const Projects: React.FC = () => {
                   fontWeight: '500',
                   color: '#374151'
                 }}>
-                  Project Title
+                  Full Name
                 </label>
                 <input
                   type="text"
                   required
-                  value={newProject.title}
-                  onChange={(e) => setNewProject({...newProject, title: e.target.value})}
+                  value={newUser.name}
+                  onChange={(e) => setNewUser({...newUser, name: e.target.value})}
                   style={{
                     width: '100%',
                     padding: '0.75rem',
@@ -495,7 +556,7 @@ const Projects: React.FC = () => {
                     borderRadius: '6px',
                     fontSize: '16px'
                   }}
-                  placeholder="Enter project title"
+                  placeholder="Enter full name"
                 />
               </div>
 
@@ -506,23 +567,45 @@ const Projects: React.FC = () => {
                   fontWeight: '500',
                   color: '#374151'
                 }}>
-                  Description
+                  Email
                 </label>
-                <textarea
+                <input
+                  type="email"
                   required
-                  value={newProject.description}
-                  onChange={(e) => setNewProject({...newProject, description: e.target.value})}
+                  value={newUser.email}
+                  onChange={(e) => setNewUser({...newUser, email: e.target.value})}
                   style={{
                     width: '100%',
                     padding: '0.75rem',
                     border: '1px solid #d1d5db',
                     borderRadius: '6px',
-                    fontSize: '16px',
-                    minHeight: '100px',
-                    resize: 'vertical',
-                    fontFamily: 'inherit'
+                    fontSize: '16px'
                   }}
-                  placeholder="Describe the project..."
+                  placeholder="Enter email address"
+                />
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  fontWeight: '500',
+                  color: '#374151'
+                }}>
+                  New Password (leave blank to keep current)
+                </label>
+                <input
+                  type="password"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '16px'
+                  }}
+                  placeholder="Enter new password (optional)"
                 />
               </div>
 
@@ -533,12 +616,11 @@ const Projects: React.FC = () => {
                   fontWeight: '500',
                   color: '#374151'
                 }}>
-                  Deadline
+                  Role
                 </label>
-                <input
-                  type="date"
-                  value={newProject.deadline}
-                  onChange={(e) => setNewProject({...newProject, deadline: e.target.value})}
+                <select
+                  value={newUser.role}
+                  onChange={(e) => setNewUser({...newUser, role: e.target.value as 'ADMIN' | 'PROJECT_MANAGER' | 'TEAM_MEMBER'})}
                   style={{
                     width: '100%',
                     padding: '0.75rem',
@@ -546,7 +628,11 @@ const Projects: React.FC = () => {
                     borderRadius: '6px',
                     fontSize: '16px'
                   }}
-                />
+                >
+                  <option value="TEAM_MEMBER">Team Member</option>
+                  <option value="PROJECT_MANAGER">Project Manager</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
               </div>
 
               <div style={{ 
@@ -559,14 +645,14 @@ const Projects: React.FC = () => {
                   variant="secondary"
                   onClick={() => {
                     setShowEditModal(false);
-                    setEditingProject(null);
-                    setNewProject({ title: '', description: '', deadline: '' });
+                    setEditingUser(null);
+                    setNewUser({ name: '', email: '', password: '', role: 'TEAM_MEMBER' });
                   }}
                 >
                   Cancel
                 </Button>
                 <Button type="submit">
-                  Update Project
+                  Update User
                 </Button>
               </div>
             </form>
@@ -577,4 +663,4 @@ const Projects: React.FC = () => {
   );
 };
 
-export default Projects;
+export default Users;

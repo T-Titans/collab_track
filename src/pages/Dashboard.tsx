@@ -1,23 +1,105 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { getThemeStyles } from '../lib/themeUtils';
+import { projectsAPI, tasksAPI, usersAPI } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
 
 const Dashboard: React.FC = () => {
   const { isDark } = useTheme();
+  const { user } = useAuth();
   const theme = getThemeStyles(isDark);
+  
+  const [stats, setStats] = useState([
+    { label: 'Total Projects', value: 0, color: theme.status.todo },
+    { label: 'Active Tasks', value: 0, color: theme.status['in-progress'] },
+    { label: 'Team Members', value: 0, color: theme.priority.medium },
+    { label: 'Overdue', value: 0, color: theme.priority.urgent }
+  ]);
+  
+  const [recentProjects, setRecentProjects] = useState<Array<{
+    name: string;
+    progress: number;
+    tasks: number;
+    color: string;
+  }>>([]);
+  
+  const [isLoading, setIsLoading] = useState(true);
 
-  const stats = [
-    { label: 'Total Projects', value: 12, color: theme.status.todo },
-    { label: 'Active Tasks', value: 8, color: theme.status['in-progress'] },
-    { label: 'Team Members', value: 5, color: theme.priority.medium },
-    { label: 'Overdue', value: 2, color: theme.priority.urgent }
-  ];
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
 
-  const recentProjects = [
-    { name: 'Website Redesign', progress: 75, tasks: 12, color: theme.status.todo },
-    { name: 'Mobile App', progress: 45, tasks: 8, color: theme.status['in-progress'] },
-    { name: 'API Development', progress: 90, tasks: 15, color: theme.status.completed }
-  ];
+      try {
+        setIsLoading(true);
+        
+        // Fetch all data in parallel
+        const [projectsResponse, tasksResponse, usersResponse] = await Promise.all([
+          projectsAPI.getAll(),
+          tasksAPI.getAll(),
+          usersAPI.getAll()
+        ]);
+
+        const projects = projectsResponse.success ? projectsResponse.data || [] : [];
+        const tasks = tasksResponse.success ? tasksResponse.data || [] : [];
+        const users = usersResponse.success ? (Array.isArray(usersResponse.data) ? usersResponse.data : usersResponse.data?.data || []) : [];
+
+        // Calculate stats
+        const totalProjects = projects.length;
+        const activeTasks = tasks.filter(task => task.status === 'IN_PROGRESS').length;
+        const teamMembers = users.length;
+        const overdueTasks = tasks.filter(task => {
+          if (!task.dueDate) return false;
+          return new Date(task.dueDate) < new Date() && task.status !== 'DONE';
+        }).length;
+
+        setStats([
+          { label: 'Total Projects', value: totalProjects, color: theme.status.todo },
+          { label: 'Active Tasks', value: activeTasks, color: theme.status['in-progress'] },
+          { label: 'Team Members', value: teamMembers, color: theme.priority.medium },
+          { label: 'Overdue', value: overdueTasks, color: theme.priority.urgent }
+        ]);
+
+        // Calculate project progress
+        const projectProgress = projects.slice(0, 3).map(project => {
+          const projectTasks = tasks.filter(task => task.projectId === project.id);
+          const completedTasks = projectTasks.filter(task => task.status === 'DONE').length;
+          const progress = projectTasks.length > 0 ? Math.round((completedTasks / projectTasks.length) * 100) : 0;
+          
+          return {
+            name: project.title,
+            progress,
+            tasks: projectTasks.length,
+            color: progress >= 90 ? theme.status.completed : 
+                   progress >= 50 ? theme.status['in-progress'] : theme.status.todo
+          };
+        });
+
+        setRecentProjects(projectProgress);
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [user]); // Add user dependency
+
+  if (isLoading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '50vh' 
+      }}>
+        <div>Loading dashboard...</div>
+      </div>
+    );
+  }
 
   return (
     <div>

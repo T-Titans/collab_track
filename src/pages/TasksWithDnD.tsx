@@ -1,5 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { tasksAPI } from '../lib/api';
+import { Task } from '../types';
+import { useSocket } from '../context/SocketContext';
+import { useAuth } from '../context/AuthContext';
 import {
   DndContext,
   closestCenter,
@@ -22,16 +26,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: 'backlog' | 'todo' | 'in-progress' | 'done';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  dueDate?: string;
-  assignedTo: string;
-  project: string;
-}
+// Remove duplicate interface - using the one from types
 
 // Droppable Column Component
 const DroppableColumn: React.FC<{
@@ -41,7 +36,10 @@ const DroppableColumn: React.FC<{
   icon: string;
   tasks: Task[];
   onTaskClick: (taskId: string) => void;
-}> = ({ id, title, color, icon, tasks, onTaskClick }) => {
+  onEditTask?: (task: Task) => void;
+  onDeleteTask?: (taskId: string) => void;
+  canEditTask?: (task: Task) => boolean;
+}> = ({ id, title, color, icon, tasks, onTaskClick, onEditTask, onDeleteTask, canEditTask }) => {
   const { setNodeRef } = useDroppable({
     id,
   });
@@ -103,6 +101,9 @@ const DroppableColumn: React.FC<{
               key={task.id}
               task={task}
               onClick={onTaskClick}
+              onEdit={onEditTask}
+              onDelete={onDeleteTask}
+              canEdit={canEditTask ? canEditTask(task) : false}
             />
           ))}
         </div>
@@ -140,7 +141,13 @@ const DroppableColumn: React.FC<{
 };
 
 // Sortable Task Component
-const SortableTask: React.FC<{ task: Task; onClick: (taskId: string) => void }> = ({ task, onClick }) => {
+const SortableTask: React.FC<{ 
+  task: Task; 
+  onClick: (taskId: string) => void;
+  onEdit?: (task: Task) => void;
+  onDelete?: (taskId: string) => void;
+  canEdit?: boolean;
+}> = ({ task, onClick, onEdit, onDelete, canEdit = false }) => {
   const {
     attributes,
     listeners,
@@ -157,20 +164,18 @@ const SortableTask: React.FC<{ task: Task; onClick: (taskId: string) => void }> 
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'urgent': return '#ef4444';
-      case 'high': return '#f97316';
-      case 'medium': return '#eab308';
-      case 'low': return '#84cc16';
+      case 'HIGH': return '#ef4444';
+      case 'MEDIUM': return '#eab308';
+      case 'LOW': return '#84cc16';
       default: return '#6b7280';
     }
   };
 
   const getPriorityIcon = (priority: string) => {
     switch (priority) {
-      case 'urgent': return '🔥';
-      case 'high': return '⚡';
-      case 'medium': return '⚠️';
-      case 'low': return '💤';
+      case 'HIGH': return '🔥';
+      case 'MEDIUM': return '⚠️';
+      case 'LOW': return '💤';
       default: return '📌';
     }
   };
@@ -320,8 +325,65 @@ const SortableTask: React.FC<{ task: Task; onClick: (taskId: string) => void }> 
         marginLeft: '4px',
         border: '1px solid #e5e7eb'
       }}>
-        {task.project}
+        {task.project?.title || 'No Project'}
       </div>
+
+      {/* Edit/Delete Buttons */}
+      {canEdit && onEdit && onDelete && (
+        <div style={{ 
+          position: 'absolute',
+          top: '0.5rem',
+          right: '0.5rem',
+          display: 'flex',
+          gap: '0.25rem',
+          opacity: 0,
+          transition: 'opacity 0.2s'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.opacity = '1';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.opacity = '0';
+        }}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(task);
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '0.25rem',
+              borderRadius: '4px',
+              color: '#6b7280',
+              fontSize: '0.75rem'
+            }}
+            title="Edit Task"
+          >
+            ✏️
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(task.id);
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '0.25rem',
+              borderRadius: '4px',
+              color: '#ef4444',
+              fontSize: '0.75rem'
+            }}
+            title="Delete Task"
+          >
+            🗑️
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -395,76 +457,79 @@ const TaskOverlay: React.FC<{ task: Task }> = ({ task }) => {
 
 // Main Tasks Component with Fixed Drag & Drop
 const TasksWithDnD: React.FC = () => {
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: '1',
-      title: 'Design Homepage',
-      description: 'Create wireframes for homepage layout',
-      status: 'todo',
-      priority: 'high',
-      dueDate: '2024-03-15',
-      assignedTo: 'John Doe',
-      project: 'Website Redesign'
-    },
-    {
-      id: '2',
-      title: 'API Authentication',
-      description: 'Implement JWT authentication system',
-      status: 'in-progress',
-      priority: 'high',
-      dueDate: '2024-03-20',
-      assignedTo: 'Jane Smith',
-      project: 'Mobile App Development'
-    },
-    {
-      id: '3',
-      title: 'Database Schema',
-      description: 'Design initial database structure',
-      status: 'done',
-      priority: 'medium',
-      assignedTo: 'Mike Johnson',
-      project: 'API Integration'
-    },
-    {
-      id: '4',
-      title: 'User Testing',
-      description: 'Conduct usability testing sessions',
-      status: 'backlog',
-      priority: 'low',
-      dueDate: '2024-04-01',
-      assignedTo: 'Sarah Wilson',
-      project: 'Website Redesign'
-    },
-    {
-      id: '5',
-      title: 'Mobile App UI Design',
-      description: 'Design user interface for mobile application',
-      status: 'in-progress',
-      priority: 'high',
-      dueDate: '2024-03-25',
-      assignedTo: 'John Doe',
-      project: 'Mobile App Development'
-    },
-    {
-      id: '6',
-      title: 'API Documentation',
-      description: 'Write comprehensive API documentation',
-      status: 'todo',
-      priority: 'medium',
-      dueDate: '2024-03-30',
-      assignedTo: 'Mike Johnson',
-      project: 'API Integration'
-    }
-  ]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    description: '',
+    priority: 'MEDIUM' as 'LOW' | 'MEDIUM' | 'HIGH',
+    dueDate: ''
+  });
   const navigate = useNavigate();
+  const { socket } = useSocket();
+
+  // Fetch tasks on component mount
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        setIsLoading(true);
+        const response = await tasksAPI.getAll();
+        if (response.success) {
+          setTasks(response.data || []);
+        } else {
+          setError(response.error || 'Failed to fetch tasks');
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch tasks');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTasks();
+  }, []);
+
+  // Set up real-time event listeners
+  useEffect(() => {
+    if (socket) {
+      // Listen for task updates
+      socket.on('task-updated', (updatedTask: Task) => {
+        setTasks(prevTasks => 
+          prevTasks.map(task => 
+            task.id === updatedTask.id ? updatedTask : task
+          )
+        );
+      });
+
+      // Listen for new tasks
+      socket.on('task-created', (newTask: Task) => {
+        setTasks(prevTasks => [newTask, ...prevTasks]);
+      });
+
+      // Listen for task deletions
+      socket.on('task-deleted', (taskId: string) => {
+        setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
+      });
+
+      return () => {
+        socket.off('task-updated');
+        socket.off('task-created');
+        socket.off('task-deleted');
+      };
+    }
+  }, [socket]);
 
   const columns = [
-    { id: 'backlog', title: 'Backlog', color: '#6b7280', icon: '📥' },
-    { id: 'todo', title: 'To Do', color: '#3b82f6', icon: '📋' },
-    { id: 'in-progress', title: 'In Progress', color: '#f59e0b', icon: '⚡' },
-    { id: 'done', title: 'Done', color: '#10b981', icon: '✅' }
+    { id: 'BACKLOG', title: 'Backlog', color: '#6b7280', icon: '📥' },
+    { id: 'TODO', title: 'To Do', color: '#3b82f6', icon: '📋' },
+    { id: 'IN_PROGRESS', title: 'In Progress', color: '#f59e0b', icon: '⚡' },
+    { id: 'DONE', title: 'Done', color: '#10b981', icon: '✅' }
   ];
 
   const sensors = useSensors(
@@ -484,7 +549,7 @@ const TasksWithDnD: React.FC = () => {
     setActiveTask(task || null);
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveTask(null);
 
@@ -502,11 +567,25 @@ const TasksWithDnD: React.FC = () => {
     if (activeTask && overColumn) {
       // Update task status if it's different
       if (activeTask.status !== overColumn.id) {
+        // Optimistically update the UI
         setTasks(tasks.map(task =>
           task.id === activeId
             ? { ...task, status: overColumn.id as Task['status'] }
             : task
         ));
+
+        // Update the backend
+        try {
+          await tasksAPI.update(activeId, { status: overColumn.id as Task['status'] });
+        } catch (err: any) {
+          // Revert the optimistic update on error
+          setTasks(tasks.map(task =>
+            task.id === activeId
+              ? { ...task, status: activeTask.status }
+              : task
+          ));
+          setError(err.message || 'Failed to update task status');
+        }
       }
     }
   };
@@ -519,9 +598,100 @@ const TasksWithDnD: React.FC = () => {
     navigate(`/tasks/${taskId}`);
   };
 
+  const handleEditTask = (task: Task) => {
+    setEditingTask(task);
+    setEditForm({
+      title: task.title,
+      description: task.description,
+      priority: task.priority,
+      dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : ''
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTask) return;
+    
+    try {
+      const response = await tasksAPI.update(editingTask.id, {
+        title: editForm.title,
+        description: editForm.description,
+        priority: editForm.priority,
+        dueDate: editForm.dueDate ? new Date(editForm.dueDate).toISOString() : undefined
+      });
+      
+      if (response.success && response.data) {
+        setTasks(tasks.map(t => t.id === editingTask.id ? response.data! : t));
+        setEditForm({ title: '', description: '', priority: 'MEDIUM', dueDate: '' });
+        setEditingTask(null);
+        setShowEditModal(false);
+      } else {
+        setError(response.error || 'Failed to update task');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to update task');
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!window.confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      const response = await tasksAPI.delete(taskId);
+      
+      if (response.success) {
+        setTasks(tasks.filter(t => t.id !== taskId));
+      } else {
+        setError(response.error || 'Failed to delete task');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete task');
+    }
+  };
+
+  const canEditTask = (task: Task) => {
+    return user?.role === 'ADMIN' || 
+           user?.role === 'PROJECT_MANAGER' || 
+           task.assignedTo === user?.id;
+  };
+
   const getTasksByStatus = (status: string) => {
     return tasks.filter(task => task.status === status);
   };
+
+  if (isLoading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '50vh' 
+      }}>
+        <div>Loading tasks...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '50vh',
+        gap: '1rem'
+      }}>
+        <div style={{ color: '#ef4444' }}>Error: {error}</div>
+        <button onClick={() => window.location.reload()}>
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '1rem', maxWidth: '1400px', margin: '0 auto' }}>
@@ -567,6 +737,9 @@ const TasksWithDnD: React.FC = () => {
               icon={column.icon}
               tasks={getTasksByStatus(column.id)}
               onTaskClick={handleTaskClick}
+              onEditTask={handleEditTask}
+              onDeleteTask={handleDeleteTask}
+              canEditTask={canEditTask}
             />
           ))}
         </div>
@@ -602,6 +775,181 @@ const TasksWithDnD: React.FC = () => {
           <li>Click on a task to view details</li>
         </ul>
       </div>
+
+      {/* Edit Task Modal */}
+      {showEditModal && editingTask && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '2rem',
+            borderRadius: '8px',
+            width: '100%',
+            maxWidth: '500px',
+            margin: '1rem'
+          }}>
+            <h2 style={{ 
+              margin: '0 0 1.5rem 0',
+              color: '#1f2937'
+            }}>
+              Edit Task
+            </h2>
+            
+            <form onSubmit={handleUpdateTask}>
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  fontWeight: '500',
+                  color: '#374151'
+                }}>
+                  Task Title
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({...editForm, title: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '16px'
+                  }}
+                  placeholder="Enter task title"
+                />
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  fontWeight: '500',
+                  color: '#374151'
+                }}>
+                  Description
+                </label>
+                <textarea
+                  required
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '16px',
+                    minHeight: '100px',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                  placeholder="Describe the task..."
+                />
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  fontWeight: '500',
+                  color: '#374151'
+                }}>
+                  Priority
+                </label>
+                <select
+                  value={editForm.priority}
+                  onChange={(e) => setEditForm({...editForm, priority: e.target.value as 'LOW' | 'MEDIUM' | 'HIGH'})}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '16px'
+                  }}
+                >
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  fontWeight: '500',
+                  color: '#374151'
+                }}>
+                  Due Date
+                </label>
+                <input
+                  type="date"
+                  value={editForm.dueDate}
+                  onChange={(e) => setEditForm({...editForm, dueDate: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '16px'
+                  }}
+                />
+              </div>
+
+              <div style={{ 
+                display: 'flex', 
+                gap: '1rem',
+                justifyContent: 'flex-end'
+              }}>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingTask(null);
+                    setEditForm({ title: '', description: '', priority: 'MEDIUM', dueDate: '' });
+                  }}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    backgroundColor: 'white',
+                    color: '#374151',
+                    cursor: 'pointer',
+                    fontSize: '16px'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    border: 'none',
+                    borderRadius: '6px',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontSize: '16px'
+                  }}
+                >
+                  Update Task
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

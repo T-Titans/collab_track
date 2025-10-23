@@ -157,7 +157,7 @@ const Settings: React.FC = () => {
         </div>
 
         {/* Team Management (Admin only) */}
-        {user?.role === 'admin' && (
+        {user?.role === 'ADMIN' && (
           <div style={{
             backgroundColor: theme.cardBg,
             borderRadius: '8px',

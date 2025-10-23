@@ -171,6 +171,33 @@ const Login: React.FC = () => {
           </Button>
         </form>
 
+        {/* Registration Link */}
+        <div style={{
+          textAlign: 'center',
+          marginTop: '1.5rem',
+          paddingTop: '1.5rem',
+          borderTop: `1px solid ${theme.borderPrimary}`
+        }}>
+          <p style={{
+            color: theme.textSecondary,
+            margin: '0 0 0.5rem 0',
+            fontSize: '0.875rem'
+          }}>
+            Don't have an account?
+          </p>
+          <a
+            href="/register"
+            style={{
+              color: '#3b82f6',
+              textDecoration: 'none',
+              fontWeight: '500',
+              fontSize: '0.875rem'
+            }}
+          >
+            Create an account here
+          </a>
+        </div>
+
         {/* Demo Credentials */}
         <div style={{ marginTop: '2rem' }}>
           <h4 style={{ 

@@ -2,15 +2,19 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { SocketProvider } from './context/SocketContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
 import TasksWithDnD from './pages/TasksWithDnD';
+import TasksNew from './pages/TasksNew';
 import TaskDetail from './pages/TaskDetail';
 import Team from './pages/Team';
+import Users from './pages/Users';
 import Settings from './pages/Settings';
 import './App.css';
 
@@ -18,11 +22,13 @@ function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
-        <Router>
+        <SocketProvider>
+          <Router>
           <div className="App">
             <Routes>
-              {/* Public Route */}
+              {/* Public Routes */}
               <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
               
               {/* Protected Routes with Layout */}
               <Route 
@@ -50,7 +56,7 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Layout>
-                      <TasksWithDnD />
+                      <TasksNew />
                     </Layout>
                   </ProtectedRoute>
                 } 
@@ -68,9 +74,19 @@ function App() {
               <Route 
                 path="/team" 
                 element={
-                  <ProtectedRoute requiredRole="admin">
+                  <ProtectedRoute requiredRole="ADMIN">
                     <Layout>
                       <Team />
+                    </Layout>
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/users" 
+                element={
+                  <ProtectedRoute requiredRole="ADMIN">
+                    <Layout>
+                      <Users />
                     </Layout>
                   </ProtectedRoute>
                 } 
@@ -93,7 +109,8 @@ function App() {
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </div>
-        </Router>
+          </Router>
+        </SocketProvider>
       </ThemeProvider>
     </AuthProvider>
   );

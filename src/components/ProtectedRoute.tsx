@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requiredRole?: 'admin' | 'project_manager' | 'team_member';
+  requiredRole?: 'ADMIN' | 'PROJECT_MANAGER' | 'TEAM_MEMBER';
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
@@ -46,9 +46,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (requiredRole) {
     // Define role hierarchy (admin has access to everything)
     const roleHierarchy = {
-      'admin': ['admin', 'project_manager', 'team_member'],
-      'project_manager': ['project_manager', 'team_member'],
-      'team_member': ['team_member']
+      'ADMIN': ['ADMIN', 'PROJECT_MANAGER', 'TEAM_MEMBER'],
+      'PROJECT_MANAGER': ['PROJECT_MANAGER', 'TEAM_MEMBER'],
+      'TEAM_MEMBER': ['TEAM_MEMBER']
     };
 
     const userRole = user.role;

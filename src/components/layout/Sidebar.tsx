@@ -1,11 +1,13 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import { getThemeStyles } from '../../lib/themeUtils';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
   const { isDark } = useTheme();
+  const { user } = useAuth();
   const theme = getThemeStyles(isDark);
 
   const menuItems = [
@@ -13,6 +15,7 @@ const Sidebar: React.FC = () => {
     { label: 'Projects', path: '/projects', icon: '📁' },
     { label: 'Tasks', path: '/tasks', icon: '✅' },
     { label: 'Team', path: '/team', icon: '👥' },
+    ...(user?.role === 'ADMIN' ? [{ label: 'Users', path: '/users', icon: '👤' }] : []),
     { label: 'Settings', path: '/settings', icon: '⚙️' }
   ];
 
