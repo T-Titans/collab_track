@@ -11,7 +11,7 @@
     "backend:start": "cd backend && npm start",
     "frontend:build": "cd frontend && npm install && npm run build",
     "backend:seed": "cd backend && npm run seed",
-    "build": "cd frontend && npm install && npm run build",
+    "build": "cd frontend && npm ci && npm run build",
     "start": "npm run backend:start",
     "heroku-postbuild": "npm run build"
   },
