@@ -129,6 +129,36 @@ const TaskDetail: React.FC = () => {
     return () => { mounted = false; };
   }, [taskId]);
 
+  if (isLoading) {
+    return (
+      <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center', padding: '2rem' }}>
+        <p>Loading task details...</p>
+      </div>
+    );
+  }
+
+  if (!task) {
+    return (
+      <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center', padding: '2rem' }}>
+        <h1>Task Not Found</h1>
+        <p>The requested task could not be found.</p>
+        <button 
+          onClick={() => navigate('/tasks')}
+          style={{
+            background: '#3b82f6',
+            color: 'white',
+            border: 'none',
+            padding: '0.5rem 1rem',
+            borderRadius: '6px',
+            cursor: 'pointer'
+          }}
+        >
+          Back to Tasks
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
       {/* Header */}
@@ -374,7 +404,7 @@ const TaskDetail: React.FC = () => {
                 <label style={{ 
                   display: 'block',
                   color: '#6b7280',
-                  fontSize: '0.875scssrem',
+                  fontSize: '0.875rem',
                   fontWeight: '500',
                   marginBottom: '0.25rem'
                 }}>

@@ -1,22 +1,94 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { getThemeStyles } from '../lib/themeUtils';
+import { api } from '../lib/api';
+
+interface DashboardStats {
+  totalProjects: number;
+  activeTasks: number;
+  teamMembers: number;
+  overdueTasks: number;
+}
+
+interface Project {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  tasks: number;
+  members: number;
+}
 
 const Dashboard: React.FC = () => {
   const { isDark } = useTheme();
   const theme = getThemeStyles(isDark);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalProjects: 0,
+    activeTasks: 0,
+    teamMembers: 0,
+    overdueTasks: 0
+  });
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const stats = [
-    { label: 'Total Projects', value: 12, color: theme.status.todo },
-    { label: 'Active Tasks', value: 8, color: theme.status['in-progress'] },
-    { label: 'Team Members', value: 5, color: theme.priority.medium },
-    { label: 'Overdue', value: 2, color: theme.priority.urgent }
-  ];
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Fetch projects and tasks in parallel
+        const [projectsRes, tasksRes] = await Promise.all([
+          api.get('/projects'),
+          api.get('/tasks')
+        ]);
 
-  const recentProjects = [
-    { name: 'Website Redesign', progress: 75, tasks: 12, color: theme.status.todo },
-    { name: 'Mobile App', progress: 45, tasks: 8, color: theme.status['in-progress'] },
-    { name: 'API Development', progress: 90, tasks: 15, color: theme.status.completed }
+        const projectsData = projectsRes.data.projects || [];
+        const tasksData = tasksRes.data.tasks || [];
+
+        // Calculate stats
+        const totalProjects = projectsData.length;
+        const activeTasks = tasksData.filter((task: any) => 
+          task.status === 'todo' || task.status === 'in-progress'
+        ).length;
+        
+        const overdueTasks = tasksData.filter((task: any) => {
+          if (!task.dueDate) return false;
+          return new Date(task.dueDate) < new Date() && task.status !== 'done';
+        }).length;
+
+        setStats({
+          totalProjects,
+          activeTasks,
+          teamMembers: 0, // We'll need a users endpoint for this
+          overdueTasks
+        });
+
+        // Get recent projects (limit to 3)
+        const recentProjects = projectsData.slice(0, 3).map((project: any) => ({
+          id: project.id,
+          title: project.title,
+          description: project.description,
+          status: project.status,
+          tasks: project.tasks || 0,
+          members: project.members || 0
+        }));
+
+        setProjects(recentProjects);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  const statsData = [
+    { label: 'Total Projects', value: stats.totalProjects, color: theme.status.todo },
+    { label: 'Active Tasks', value: stats.activeTasks, color: theme.status['in-progress'] },
+    { label: 'Team Members', value: stats.teamMembers, color: theme.priority.medium },
+    { label: 'Overdue', value: stats.overdueTasks, color: theme.priority.urgent }
   ];
 
   return (
@@ -42,7 +114,12 @@ const Dashboard: React.FC = () => {
         gap: '1.5rem',
         marginBottom: '2rem'
       }}>
-        {stats.map((stat, index) => (
+        {isLoading ? (
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem' }}>
+            <p style={{ color: theme.textSecondary }}>Loading dashboard data...</p>
+          </div>
+        ) : (
+          statsData.map((stat, index) => (
           <div
             key={index}
             style={{
@@ -84,7 +161,8 @@ const Dashboard: React.FC = () => {
               {stat.value}
             </p>
           </div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* Recent Projects */}
@@ -106,7 +184,16 @@ const Dashboard: React.FC = () => {
         </h2>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {recentProjects.map((project, index) => (
+          {isLoading ? (
+            <div style={{ textAlign: 'center', padding: '2rem' }}>
+              <p style={{ color: theme.textSecondary }}>Loading projects...</p>
+            </div>
+          ) : projects.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2rem' }}>
+              <p style={{ color: theme.textSecondary }}>No projects found. Create your first project to get started!</p>
+            </div>
+          ) : (
+            projects.map((project, index) => (
             <div
               key={index}
               style={{
@@ -139,14 +226,14 @@ const Dashboard: React.FC = () => {
                   fontWeight: '600',
                   fontSize: '1.125rem'
                 }}>
-                  {project.name}
+                  {project.title}
                 </h3>
                 <p style={{ 
                   margin: 0,
                   color: theme.textSecondary,
                   fontSize: '0.875rem'
                 }}>
-                  {project.tasks} tasks • {project.progress}% complete
+                  {project.tasks} tasks • {project.members} members • {project.status}
                 </p>
               </div>
               
@@ -160,9 +247,9 @@ const Dashboard: React.FC = () => {
                 }}>
                   <div
                     style={{
-                      width: `${project.progress}%`,
+                      width: '100%',
                       height: '100%',
-                      backgroundColor: project.color,
+                      backgroundColor: theme.status.todo,
                       borderRadius: '4px',
                       transition: 'width 0.3s ease'
                     }}
@@ -174,11 +261,12 @@ const Dashboard: React.FC = () => {
                   minWidth: '40px',
                   fontSize: '1rem'
                 }}>
-                  {project.progress}%
+                  {project.status}
                 </span>
               </div>
             </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     </div>
