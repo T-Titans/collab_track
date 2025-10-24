@@ -1,0 +1,104 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "name": "Admin User",
+      "email": "admin@collabtrack.com",
+      "password": "password123",
+      "role": "admin"
+    },
+    {
+      "id": "2",
+      "name": "Project Manager",
+      "email": "pm@collabtrack.com",
+      "password": "password123",
+      "role": "project_manager"
+    },
+    {
+      "id": "3",
+      "name": "Team Member",
+      "email": "member@collabtrack.com",
+      "password": "password123",
+      "role": "team_member"
+    }
+  ],
+  "projects": [
+    {
+      "id": "p1",
+      "title": "Website Redesign",
+      "description": "Redesign the company website"
+    },
+    {
+      "id": "p2",
+      "title": "Mobile App Development",
+      "description": "Build the new mobile application"
+    },
+    {
+      "id": "p3",
+      "title": "API Integration",
+      "description": "Integrate third-party APIs"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "1",
+      "title": "Design Homepage",
+      "description": "Create wireframes for homepage layout",
+      "status": "todo",
+      "priority": "high",
+      "dueDate": "2024-03-15",
+      "assignedTo": "John Doe",
+      "project": "Website Redesign"
+    },
+    {
+      "id": "2",
+      "title": "API Authentication",
+      "description": "Implement JWT authentication system",
+      "status": "in-progress",
+      "priority": "high",
+      "dueDate": "2024-03-20",
+      "assignedTo": "Jane Smith",
+      "project": "Mobile App Development"
+    },
+    {
+      "id": "3",
+      "title": "Database Schema",
+      "description": "Design initial database structure",
+      "status": "done",
+      "priority": "medium",
+      "assignedTo": "Mike Johnson",
+      "project": "API Integration"
+    },
+    {
+      "id": "4",
+      "title": "User Testing",
+      "description": "Conduct usability testing sessions",
+      "status": "backlog",
+      "priority": "low",
+      "dueDate": "2024-04-01",
+      "assignedTo": "Sarah Wilson",
+      "project": "Website Redesign"
+    },
+    {
+      "id": "5",
+      "title": "Mobile App UI Design",
+      "description": "Design user interface for mobile application",
+      "status": "in-progress",
+      "priority": "high",
+      "dueDate": "2024-03-25",
+      "assignedTo": "John Doe",
+      "project": "Mobile App Development"
+    },
+    {
+      "id": "6",
+      "title": "API Documentation",
+      "description": "Write comprehensive API documentation",
+      "status": "todo",
+      "priority": "medium",
+      "dueDate": "2024-03-30",
+      "assignedTo": "Mike Johnson",
+      "project": "API Integration"
+    }
+  ],
+  "refreshTokens": []
+}
