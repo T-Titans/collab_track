@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: collabtrack-backend
+    name: collabtrack
     env: node
     plan: free
-    buildCommand: cd backend && npm install
-    startCommand: cd backend && npm start
+    buildCommand: npm run install-all && npm run build
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
@@ -13,14 +13,4 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: FRONTEND_URL
-        value: https://collabtrack-frontend.onrender.com
-
-  - type: web
-    name: collabtrack-frontend
-    env: static
-    plan: free
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/build
-    envVars:
-      - key: REACT_APP_API_URL
-        value: https://collabtrack-backend.onrender.com/api
+        value: https://collab-track-rjjs.onrender.com

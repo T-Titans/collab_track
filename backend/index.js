@@ -4,6 +4,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
+const fs = require('fs');
 
 const User = require('./models/User');
 const Project = require('./models/Project');
@@ -14,6 +15,9 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret';
+
+// Fix Mongoose deprecation warning
+mongoose.set('strictQuery', false);
 
 app.use(cors({ origin: FRONTEND_URL, allowedHeaders: ['Content-Type', 'Authorization'] }));
 app.use(express.json());
@@ -226,12 +230,32 @@ app.get('/api/tasks', async (req, res) => {
   }
 });
 
-// Serve React build in production (frontend now lives in ../frontend)
+// Serve React build in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '..', 'frontend', 'build')));
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'frontend', 'build', 'index.html'));
-  });
+  // Try multiple possible paths for the frontend build
+  const possiblePaths = [
+    path.join(__dirname, '..', 'frontend', 'build'),
+    path.join(__dirname, '..', 'build'),
+    path.join(__dirname, 'frontend', 'build'),
+    path.join(__dirname, 'build')
+  ];
+  
+  let buildPath = null;
+  for (const buildDir of possiblePaths) {
+    if (fs.existsSync(buildDir)) {
+      buildPath = buildDir;
+      break;
+    }
+  }
+  
+  if (buildPath) {
+    app.use(express.static(buildPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(buildPath, 'index.html'));
+    });
+  } else {
+    console.log('Frontend build not found, serving API only');
+  }
 }
 
 app.get('/api/tasks/:id', async (req, res) => {
